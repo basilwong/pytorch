@@ -1987,8 +1987,8 @@ class AotCodeCompiler:
 
         from filelock import FileLock
 
-        lock_dir = get_lock_dir()
-        lock = FileLock(os.path.join(lock_dir, key + ".lock"), timeout=LOCK_TIMEOUT)
+        lock_path = os.path.join(get_lock_dir(), specified_output_path + ".lock")
+        lock = FileLock(lock_path, timeout=LOCK_TIMEOUT)
         with lock:
             # Currently, this only support serializing extern nodes in fbcode
             # Eventually, we should also have a serializer for OSS.
