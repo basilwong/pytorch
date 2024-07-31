@@ -921,9 +921,15 @@ class BatchPointwiseOpsPreGradFusion(BatchPointwiseOpsFusionFactory):
                     self.op,
                     args=(stack_inputs,),
                 )
+            if "example_value" in batch_op.meta:
+                batch_op.meta["example_value"] = self.op(batch_op.meta["example_value"])
             unbind_op = graph.call_function(
                 torch.unbind, args=(batch_op,), kwargs={"dim": 0}
             )
+            if "example_value" in unbind_op.meta:
+                unbind_op.meta["example_value"] = torch.unbind(
+                    unbind_op.meta["example_value"], dim=0
+                )
             for i, node in enumerate(batch_nodes):
                 with graph.inserting_after(unbind_op):
                     getitem = graph.call_function(operator.getitem, args=(unbind_op, i))
