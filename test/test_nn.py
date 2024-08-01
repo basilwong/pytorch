@@ -12385,12 +12385,19 @@ if __name__ == '__main__':
             result = model(encoder_input, src_key_padding_mask=mask)
             self.assertEqual(result.shape, ref_output.shape)
             torch.testing.assert_close(result, ref_output, atol=atol, rtol=rtol)
-            # 1 values are masked. Since there is only 1 input embedding this
-            # will result in nan.
             mask = torch.tensor([[1]], device=device) == 1
             result = model(encoder_input, src_key_padding_mask=mask)
             result = result.cpu().detach().numpy()
-            self.assertTrue(np.isnan(result).all())
+            # Non Fast Paths
+            if training or not batch_first or TEST_WITH_CROSSREF:
+                # We changed the semenatic, on the non fast path so that fully masked out rows return
+                # 0 from attention thus NaNs should no longer be present and the output should be nonzero
+                # due to skip connections
+                self.assertTrue(not np.isnan(result).any())
+            else:
+                # Fast Paths
+                self.assertTrue(np.isnan(result).all())
+
 
             # deterministic input
             encoder_input = perm_fn(torch.tensor([[[1., 2., 3., 4.]],
