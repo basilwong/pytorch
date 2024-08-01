@@ -243,7 +243,8 @@ struct DumpPipe {
 //   // Now continue on other work in the current stream.
 class TORCH_API ProcessGroupNCCL : public Backend {
  public:
-  class WorkNCCL : public Work, public std::enable_shared_from_this<WorkNCCL> {
+  class TORCH_API WorkNCCL : public Work,
+                             public std::enable_shared_from_this<WorkNCCL> {
    public:
     friend struct WorkInfo;
 
@@ -313,6 +314,8 @@ class TORCH_API ProcessGroupNCCL : public Backend {
     bool checkTimeout(
         std::optional<std::chrono::milliseconds> timeout = std::nullopt);
 
+    std::chrono::milliseconds getOpTimeout() const;
+
     std::vector<at::Tensor> result() override;
 
    protected:
@@ -340,6 +343,9 @@ class TORCH_API ProcessGroupNCCL : public Backend {
 
     // Clone of opTimeout_ from ProcessGroupNCCL.
     std::chrono::milliseconds opTimeout_;
+
+    // timeout to be reduced after this work finishes.
+    std::chrono::milliseconds opTimeoutReduce_ = std::chrono::milliseconds(0);
 
     // Time point representing when the work started.
     std::chrono::time_point<std::chrono::steady_clock> workStartTime_;
@@ -642,6 +648,8 @@ class TORCH_API ProcessGroupNCCL : public Backend {
 
   void performNocolorSplit(at::Device device);
 
+  void extendTimeoutUntilFirstDone(const std::chrono::milliseconds& timeout);
+
  protected:
   // Helper that broadcasts nccl unique ID to all ranks through the store
   void broadcastUniqueNCCLID(
@@ -801,6 +809,11 @@ class TORCH_API ProcessGroupNCCL : public Backend {
   // Returns the global ranks of a PG.
   const std::vector<uint64_t>& groupRanks() const;
 
+  // Util function to assign timeout to each work.
+  void assignTimeoutToWork(
+      c10::intrusive_ptr<ProcessGroupNCCL::WorkNCCL> work,
+      c10::intrusive_ptr<Options> option);
+
  protected:
   // Function that runs as part of a separate thread aside from watchdog
   // thread because we need to check the heartbeat from watchdog thread
@@ -838,6 +851,17 @@ class TORCH_API ProcessGroupNCCL : public Backend {
   c10::intrusive_ptr<Store> globalStore_;
 
   bool storeError_{false};
+
+  // The lock which protects the write/read of
+  // extendedTimeout_/inflightTimeoutExt_.
+  std::mutex mtxTimeoutExtension_;
+
+  // The extended timeout on top of existing timeout for works issued before
+  // first work finishes.
+  std::chrono::milliseconds extendedTimeout_ = std::chrono::milliseconds(0);
+
+  // The timeout extension which has been already applied to work.
+  std::chrono::milliseconds inflightTimeoutExt_ = std::chrono::milliseconds(0);
 
   const c10::intrusive_ptr<Options> options_;
 
