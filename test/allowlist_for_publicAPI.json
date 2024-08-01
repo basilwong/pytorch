@@ -2101,6 +2101,7 @@
     "Event",
     "EventHandlerHandle",
     "Stat",
+    "WaitCounter",
     "data_value_t",
     "log_event",
     "register_event_handler",
